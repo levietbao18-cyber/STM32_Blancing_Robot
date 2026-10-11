@@ -156,19 +156,20 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if(flag_10ms>=10){
+		  float dt_angle=flag_10ms;
+		  flag_10ms=0;
 		  MPU6050_ReadAll(&MyMPU);
 		  float pwm_motor1=0;
 		  float pwm_motor2=0;
 
-		  float dt_angle=flag_10ms;
-		  flag_10ms=0;
+
 
 		  if(fabs(MyMPU.Pitch)>45.0f){
 
 		  }
 		  else{
-			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle);
-			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle);
+			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle/1000.0f);
+			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle/1000.0f);
 		  }
 		  Motor_Setspeed(&motor1, pwm_motor1);
 		  Motor_Setspeed(&motor2, pwm_motor2);
@@ -179,8 +180,8 @@ int main(void)
 		  flag_30ms=0;
 		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
 		  int16_t encoder2=__HAL_TIM_GET_COUNTER(&htim4);
-		  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed);
-		  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed);
+		  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed/1000.0f);
+		  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed/1000.0f);
 
 	      __HAL_TIM_SET_COUNTER(&htim3, 0);
 	      __HAL_TIM_SET_COUNTER(&htim4, 0);
