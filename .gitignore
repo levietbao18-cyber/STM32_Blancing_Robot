@@ -1,0 +1,15 @@
+# Build directories
+Debug/
+Release/
+
+# Object and executable files
+*.elf
+*.bin
+*.hex
+*.o
+*.d
+*.map
+*.su
+
+# IDE workspace metadata
+.metadata/
