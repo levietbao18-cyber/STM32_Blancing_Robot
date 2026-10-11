@@ -155,7 +155,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if(flag_10ms>10){
+	  if(flag_10ms>=10){
 		  MPU6050_ReadAll(&MyMPU);
 		  float pwm_motor1=0;
 		  float pwm_motor2=0;
@@ -167,21 +167,20 @@ int main(void)
 
 		  }
 		  else{
-			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,(float)flag_10ms/1000.0f);
-			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,(float)flag_10ms/1000.0f);
+			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle);
+			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle);
 		  }
 		  Motor_Setspeed(&motor1, pwm_motor1);
 		  Motor_Setspeed(&motor2, pwm_motor2);
-		  __HAL_TIM_SET_COMPARE(motor1.htim,motor1.TIM_Channel,pwm_motor1);
-		  __HAL_TIM_SET_COMPARE(motor2.htim,motor2.TIM_Channel,pwm_motor2);
+
 	  }
-	  else if(flag_30ms>30){
+	  else if(flag_30ms>=30){
 		  float dt_speed=flag_30ms;
 		  flag_30ms=0;
 		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
 		  int16_t encoder2=__HAL_TIM_GET_COUNTER(&htim4);
-		  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, (float)flag_30ms/1000);
-		  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, (float)flag_30ms/1000);
+		  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed);
+		  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed);
 
 	      __HAL_TIM_SET_COUNTER(&htim3, 0);
 	      __HAL_TIM_SET_COUNTER(&htim4, 0);
