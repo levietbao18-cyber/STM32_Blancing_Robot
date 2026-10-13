@@ -34,7 +34,25 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MPU6050_Address 0x68
+#define samples 200
 
+#define is_reversed 	1
+#define not_reversed 	0
+
+#define Angle_Kp		50.0f
+#define Angle_Ki		0.0f
+#define Angle_Kd		2.0f
+
+#define Speed_Kp		0.00015f
+#define Speed_Ki		0.0f
+#define Speed_Kd		0.0f
+
+#define MAX_PWM			2879
+#define MIN_PWM			-2879
+
+#define MAX_Angle		10.0f
+#define MIN_Angle		-10.0f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -133,17 +151,17 @@ int main(void)
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
 
-  MPU6050_Init(&MyMPU, &hi2c2, 0x68);
-  MPU6050_Calibrate(&MyMPU, 200);
+  MPU6050_Init(&MyMPU, &hi2c2, MPU6050_Address);
+  MPU6050_Calibrate(&MyMPU, samples);
 
-  Motor_Init(&motor1, IN1_GPIO_Port, IN1_Pin, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, 0);
-  Motor_Init(&motor2, IN3_GPIO_Port, IN3_Pin, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, 1);
+  Motor_Init(&motor1, IN1_GPIO_Port, IN1_Pin, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, not_reversed);
+  Motor_Init(&motor2, IN3_GPIO_Port, IN3_Pin, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, is_reversed);
 
-  PID_init(&AngleMotor1, 50.0f, 0.0f, 2.0f, -2879, 2879);
-  PID_init(&AngleMotor2, 50.0f, 0.0f, 2.0f, -2879, 2879);
+  PID_init(&AngleMotor1, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
+  PID_init(&AngleMotor2, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
 
-  PID_init(&SpeedMotor1, 0.00015f, 0.0f, 2.0f, -10.0f, 10.0f);
-  PID_init(&SpeedMotor2, 0.00015f, 0.0f, 2.0f, -10.0f, 10.0f);
+  PID_init(&SpeedMotor1, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
+  PID_init(&SpeedMotor2, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
@@ -159,12 +177,22 @@ int main(void)
 		  float dt_angle=flag_10ms;
 		  flag_10ms=0;
 		  MPU6050_ReadAll(&MyMPU);
+
 		  float pwm_motor1=0;
 		  float pwm_motor2=0;
 
 
 
 		  if(fabs(MyMPU.Pitch)>45.0f){
+			  pwm_motor1=0;
+			  pwm_motor2=0;
+			  Motor1_Setpoint=0.0f;
+			  Motor2_Setpoint=0.0f;
+			  AngleMotor1.pre_error=0.0f;
+			  AngleMotor2.pre_error=0.0f;
+
+			  SpeedMotor1.pre_error=0.0f;
+			  SpeedMotor2.pre_error=0.0f;
 
 		  }
 		  else{
@@ -175,7 +203,7 @@ int main(void)
 		  Motor_Setspeed(&motor2, pwm_motor2);
 
 	  }
-	  else if(flag_30ms>=30){
+	  if(flag_30ms>=30){
 		  float dt_speed=flag_30ms;
 		  flag_30ms=0;
 		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
@@ -304,10 +332,6 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_OC_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
@@ -325,8 +349,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_TIMING;
-  if (HAL_TIM_OC_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
   }

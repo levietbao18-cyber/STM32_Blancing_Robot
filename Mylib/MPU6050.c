@@ -18,7 +18,7 @@
 #define RAD_TO_DEG              57.29577951308232f
 
 const float AFS_SEL_0=				16384.0f;
-const float FS_SEL_1=					65.5f;
+const float FS_SEL_1=				65.5f;
 
 static void Kalman_Init(Kalman_t *Kalman) {
     Kalman->Q_angle = 0.001f;
@@ -44,22 +44,22 @@ void MPU6050_Init(MPU6050_TypeDef *MyMPU,I2C_HandleTypeDef *hi2c,uint8_t address
 
 	uint8_t address_check;
 	uint8_t data;
-	HAL_I2C_Mem_Read(MyMPU->hi2c, MyMPU->address<<1, MPU6050_Who_Am_I, 1, &address_check,1, 1);
+	HAL_I2C_Mem_Read(MyMPU->hi2c, MyMPU->address<<1, MPU6050_Who_Am_I, 1, &address_check,1, 10);
 	if(address_check ==0x68){
 		data=0x00;
-		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_PWR_MGMT_1,1, &data, 1, 1);
+		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_PWR_MGMT_1,1, &data, 1, 10);
 
 		data=0x00;
-		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_SMPLRT_DIV,1, &data, 1, 1);
+		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_SMPLRT_DIV,1, &data, 1, 10);
 
 		data=0x08;
-		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_GYRO_CONFIG,1, &data, 1, 1);
+		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_GYRO_CONFIG,1, &data, 1, 10);
 
 		data=0x00;
-		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_CONFIG,1, &data, 1, 1);
+		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_CONFIG,1, &data, 1, 10);
 
-		data=0x03;
-		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_CONFIG, 1,&data, 1, 1);
+		data=0x00;
+		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_CONFIG, 1,&data, 1, 10);
 	}
 }
 
@@ -126,16 +126,16 @@ void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU){
 	int16_t AX_raw = (int16_t)(data[0]<<8 | data[1]);
 	int16_t AY_raw = (int16_t)(data[2]<<8 | data[3]);
 	int16_t AZ_raw = (int16_t)(data[4]<<8 | data[5]);
-	MyMPU->Ax=(float)AX_raw/16384.0f;
-	MyMPU->Ay=(float)AY_raw/16384.0f;
-	MyMPU->Az=(float)AZ_raw/16384.0f;
+	MyMPU->Ax=(float)AX_raw/AFS_SEL_0;
+	MyMPU->Ay=(float)AY_raw/AFS_SEL_0;
+	MyMPU->Az=(float)AZ_raw/AFS_SEL_0;
 
 	int16_t GX_raw = (int16_t)(data[8]<<8 | data[9]);
 	int16_t GY_raw = (int16_t)(data[10]<<8 | data[11]);
 	int16_t GZ_raw = (int16_t)(data[12]<<8 | data[13]);
-	MyMPU->Gx=(float)GX_raw/65.6f-MyMPU->Gx_offset;
-	MyMPU->Gy=(float)GY_raw/65.5f-MyMPU->Gy_offset;
-	MyMPU->Gz=(float)GZ_raw/65.5f-MyMPU->Gz_offset;
+	MyMPU->Gx=(float)GX_raw/FS_SEL_1-MyMPU->Gx_offset;
+	MyMPU->Gy=(float)GY_raw/FS_SEL_1-MyMPU->Gy_offset;
+	MyMPU->Gz=(float)GZ_raw/FS_SEL_1-MyMPU->Gz_offset;
 
 	float pitch= atan2(MyMPU->Ax,sqrt(MyMPU->Ay*MyMPU->Ay+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
 	float roll=atan2(MyMPU->Ay,sqrt(MyMPU->Ax*MyMPU->Ax+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
