@@ -35,7 +35,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define MPU6050_Address 0x68
-#define samples 200
+#define samples 		200
 
 #define is_reversed 	1
 #define not_reversed 	0
@@ -44,15 +44,15 @@
 #define Angle_Ki		0.0f
 #define Angle_Kd		2.0f
 
-#define Speed_Kp		0.00015f
+#define Speed_Kp		0.12f
 #define Speed_Ki		0.0f
 #define Speed_Kd		0.0f
 
 #define MAX_PWM			2879
 #define MIN_PWM			-2879
 
-#define MAX_Angle		10.0f
-#define MIN_Angle		-10.0f
+#define MAX_Angle		15.0f
+#define MIN_Angle		-15.0f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -174,9 +174,9 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if(flag_10ms>=10){
-		  float dt_angle=flag_10ms;
+		  float dt_angle=flag_10ms/1000.0f;
 		  flag_10ms=0;
-		  MPU6050_ReadAll(&MyMPU);
+		  MPU6050_ReadAll(&MyMPU,dt_angle);
 
 		  float pwm_motor1=0;
 		  float pwm_motor2=0;
@@ -196,21 +196,22 @@ int main(void)
 
 		  }
 		  else{
-			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle/1000.0f);
-			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle/1000.0f);
+			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle);
+			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle);
 		  }
 		  Motor_Setspeed(&motor1, pwm_motor1);
 		  Motor_Setspeed(&motor2, pwm_motor2);
 
 	  }
 	  if(flag_30ms>=30){
-		  float dt_speed=flag_30ms;
+		  float dt_speed=flag_30ms/1000.0f;
 		  flag_30ms=0;
 		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
 		  int16_t encoder2=__HAL_TIM_GET_COUNTER(&htim4);
-		  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed/1000.0f);
-		  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed/1000.0f);
-
+		  if(HAL_GetTick()>=6000){
+			  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed);
+			  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed);
+		  }
 	      __HAL_TIM_SET_COUNTER(&htim3, 0);
 	      __HAL_TIM_SET_COUNTER(&htim4, 0);
 
