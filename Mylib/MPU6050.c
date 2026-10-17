@@ -117,7 +117,7 @@ float Kalman_GetAngle(Kalman_t *Kalman,float newAngle, float newRate,float dt){
 	MyMPU->Gy_offset=sum_Gy/samples;
 	MyMPU->Gz_offset=sum_Gz/samples;
 }
-void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU){
+void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU,float dt){
 	uint8_t data[14];
 
 	HAL_I2C_Mem_Read(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_OUT, 1, data, 14, 100);
@@ -140,14 +140,7 @@ void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU){
 	float pitch= atan2(MyMPU->Ax,sqrt(MyMPU->Ay*MyMPU->Ay+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
 	float roll=atan2(MyMPU->Ay,sqrt(MyMPU->Ax*MyMPU->Ax+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
 
-	uint32_t now=HAL_GetTick();
-	if(MyMPU->last_time==0){
-		MyMPU->last_time=now;
-		return;
-	}
-	float dt=(float)(now-MyMPU->last_time)/1000.0f;
-	if(dt<=0.0f) return ;
-	MyMPU->last_time=now;
+
 	MyMPU->Roll=Kalman_GetAngle(&MyMPU->KalmanRoll, roll, MyMPU->Gx, dt);
 	MyMPU->Pitch=Kalman_GetAngle(&MyMPU->KalmanPitch, pitch, -MyMPU->Gy, dt);
 
