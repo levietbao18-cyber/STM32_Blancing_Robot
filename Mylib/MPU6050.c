@@ -58,7 +58,7 @@ void MPU6050_Init(MPU6050_TypeDef *MyMPU,I2C_HandleTypeDef *hi2c,uint8_t address
 		data=0x00;
 		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_CONFIG,1, &data, 1, 10);
 
-		data=0x00;
+		data=0x03;
 		HAL_I2C_Mem_Write(MyMPU->hi2c, MyMPU->address<<1, MPU6050_CONFIG, 1,&data, 1, 10);
 	}
 }
@@ -118,9 +118,9 @@ float Kalman_GetAngle(Kalman_t *Kalman,float newAngle, float newRate,float dt){
 	MyMPU->Gz_offset=sum_Gz/samples;
 }
 void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU,float dt){
-	uint8_t data[14];
+	uint8_t data[14]={0};
 
-	HAL_I2C_Mem_Read(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_OUT, 1, data, 14, 100);
+	if(HAL_I2C_Mem_Read(MyMPU->hi2c, MyMPU->address<<1, MPU6050_ACCEL_OUT, 1, data, 14, 5)!=HAL_OK) return;
 
 
 	int16_t AX_raw = (int16_t)(data[0]<<8 | data[1]);
@@ -137,11 +137,11 @@ void MPU6050_ReadAll(MPU6050_TypeDef *MyMPU,float dt){
 	MyMPU->Gy=(float)GY_raw/FS_SEL_1-MyMPU->Gy_offset;
 	MyMPU->Gz=(float)GZ_raw/FS_SEL_1-MyMPU->Gz_offset;
 
-	float pitch= atan2(MyMPU->Ax,sqrt(MyMPU->Ay*MyMPU->Ay+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
-	float roll=atan2(MyMPU->Ay,sqrt(MyMPU->Ax*MyMPU->Ax+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
+	float pitch_accel= atan2f(MyMPU->Ax,sqrtf(MyMPU->Ay*MyMPU->Ay+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
+	//float roll_accel=atan2f(MyMPU->Ay,sqrtf(MyMPU->Ax*MyMPU->Ax+MyMPU->Az*MyMPU->Az))*RAD_TO_DEG;
 
 
-	MyMPU->Roll=Kalman_GetAngle(&MyMPU->KalmanRoll, roll, MyMPU->Gx, dt);
-	MyMPU->Pitch=Kalman_GetAngle(&MyMPU->KalmanPitch, pitch, -MyMPU->Gy, dt);
+	//MyMPU->Roll=Kalman_GetAngle(&MyMPU->KalmanRoll, roll_accel, MyMPU->Gx, dt);
+	MyMPU->Pitch=Kalman_GetAngle(&MyMPU->KalmanPitch, pitch_accel, -MyMPU->Gy, dt);
 
 }
