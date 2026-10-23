@@ -53,6 +53,8 @@
 
 #define MAX_Angle		15.0f
 #define MIN_Angle		-15.0f
+
+#define MOTOR_DEADBAND 	500U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,20 +70,20 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
+UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_rx;
+
 /* USER CODE BEGIN PV */
 MPU6050_TypeDef MyMPU;
 
 Motor_t motor1;
 Motor_t motor2;
 
-PID_t AngleMotor1;
-PID_t AngleMotor2;
+PID_t PID_Angle;
+PID_t PID_Speed;
 
-PID_t SpeedMotor1;
-PID_t SpeedMotor2;
-
-float Motor1_Setpoint=0;
-float Motor2_Setpoint=0;
+float target_angle=0;
+float filtered_speed=0;
 
 volatile uint8_t flag_10ms=0;
 volatile uint8_t flag_30ms=0;
@@ -90,11 +92,13 @@ volatile uint8_t flag_30ms=0;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_I2C2_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
  void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
@@ -139,14 +143,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_TIM1_Init();
   MX_I2C2_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  __HAL_TIM_MOE_ENABLE(&htim1);
 
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
@@ -154,14 +161,12 @@ int main(void)
   MPU6050_Init(&MyMPU, &hi2c2, MPU6050_Address);
   MPU6050_Calibrate(&MyMPU, samples);
 
-  Motor_Init(&motor1, IN1_GPIO_Port, IN1_Pin, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, not_reversed);
-  Motor_Init(&motor2, IN3_GPIO_Port, IN3_Pin, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, is_reversed);
+  Motor_Init(&motor1, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, not_reversed,MOTOR_DEADBAND);
+  Motor_Init(&motor2, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, is_reversed,MOTOR_DEADBAND);
 
-  PID_init(&AngleMotor1, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
-  PID_init(&AngleMotor2, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
+  PID_init(&PID_Angle, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
 
-  PID_init(&SpeedMotor1, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
-  PID_init(&SpeedMotor2, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
+  PID_init(&PID_Speed, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
@@ -178,29 +183,23 @@ int main(void)
 		  flag_10ms=0;
 		  MPU6050_ReadAll(&MyMPU,dt_angle);
 
-		  float pwm_motor1=0;
-		  float pwm_motor2=0;
+		  float pwm_motor=0;
 
 
+		  if(fabsf(MyMPU.Pitch)>45.0f){
+			  pwm_motor=0;
+			  target_angle=0;
+			  filtered_speed=0;
 
-		  if(fabs(MyMPU.Pitch)>45.0f){
-			  pwm_motor1=0;
-			  pwm_motor2=0;
-			  Motor1_Setpoint=0.0f;
-			  Motor2_Setpoint=0.0f;
-			  AngleMotor1.pre_error=0.0f;
-			  AngleMotor2.pre_error=0.0f;
-
-			  SpeedMotor1.pre_error=0.0f;
-			  SpeedMotor2.pre_error=0.0f;
+			  PID_Reset(&PID_Angle);
+			  PID_Reset(&PID_Speed);
 
 		  }
 		  else{
-			  pwm_motor1=PID_compute(&AngleMotor1, Motor1_Setpoint, MyMPU.Pitch,dt_angle);
-			  pwm_motor2=PID_compute(&AngleMotor2, Motor2_Setpoint, MyMPU.Pitch,dt_angle);
+			  pwm_motor=PID_Compute_WithRate(&PID_Angle, target_angle, MyMPU.Pitch,MyMPU.KalmanPitch.rate, dt_angle);
 		  }
-		  Motor_Setspeed(&motor1, pwm_motor1);
-		  Motor_Setspeed(&motor2, pwm_motor2);
+		  Motor_Setspeed(&motor1, pwm_motor);
+		  Motor_Setspeed(&motor2, pwm_motor);
 
 	  }
 	  if(flag_30ms>=30){
@@ -208,9 +207,14 @@ int main(void)
 		  flag_30ms=0;
 		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
 		  int16_t encoder2=__HAL_TIM_GET_COUNTER(&htim4);
-		  if(HAL_GetTick()>=6000){
-			  Motor1_Setpoint=PID_compute(&SpeedMotor1, 0, (float)encoder1, dt_speed);
-			  Motor2_Setpoint=PID_compute(&SpeedMotor2, 0, (float)encoder2, dt_speed);
+
+		  encoder2=-encoder2;
+
+		  float encoder_raw=(float)(encoder1+encoder2)*0.5f;
+		  filtered_speed= 0.6f*filtered_speed+encoder_raw*0.4f;
+
+		  if(HAL_GetTick()>=6000&&fabs( MyMPU.Pitch<45.0f)){
+			  target_angle=PID_compute(&PID_Speed, 0.0f,filtered_speed, dt_speed);
 		  }
 	      __HAL_TIM_SET_COUNTER(&htim3, 0);
 	      __HAL_TIM_SET_COUNTER(&htim4, 0);
@@ -314,7 +318,7 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 24;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 2879;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -516,6 +520,55 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -533,14 +586,24 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, IN1_Pin|IN2_Pin|IN3_Pin|IN4_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(IN2_GPIO_Port, IN2_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : IN1_Pin IN2_Pin IN3_Pin IN4_Pin */
-  GPIO_InitStruct.Pin = IN1_Pin|IN2_Pin|IN3_Pin|IN4_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(IN4_GPIO_Port, IN4_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : IN2_Pin */
+  GPIO_InitStruct.Pin = IN2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(IN2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : IN4_Pin */
+  GPIO_InitStruct.Pin = IN4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
+  HAL_GPIO_Init(IN4_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
