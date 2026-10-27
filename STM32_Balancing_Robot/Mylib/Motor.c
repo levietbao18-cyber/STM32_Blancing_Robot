@@ -4,7 +4,7 @@
 /* ====================================================================
  * TRIỂN KHAI CHO CHẾ ĐỘ SLOW DECAY
  * ==================================================================== */
-void Motor_Init(Motor_t *motor,
+void Motor_init(Motor_t *motor,
                 GPIO_TypeDef *PortDir, uint16_t PinDir,
                 TIM_HandleTypeDef *htim, uint32_t channel,
                 uint8_t is_reversed, uint16_t deadband)
@@ -18,7 +18,7 @@ void Motor_Init(Motor_t *motor,
     motor->deadband    = deadband;
 }
 
-void Motor_Setspeed(Motor_t *motor, float speed)
+void Motor_setspeed(Motor_t *motor, float speed)
 {
 	if (motor->is_reversed) speed = -speed;
 
@@ -52,10 +52,13 @@ void Motor_Setspeed(Motor_t *motor, float speed)
         __HAL_TIM_SET_COMPARE(motor->htim, motor->TIM_Channel, motor->max_pwm-pwm_out);
     }
 }
-
+void Motor_stop(Motor_t *motor){
+	HAL_GPIO_WritePin(motor->PortDir, motor->PinDir, GPIO_PIN_RESET);
+	__HAL_TIM_SET_COMPARE(motor->htim,motor->TIM_Channel,0);
+}
 #else
 
-void Motor_Init(Motor_t *motor,
+void Motor_init(Motor_t *motor,
                 GPIO_TypeDef *PortIn1, uint16_t PinIn1,
                 GPIO_TypeDef *PortIn2, uint16_t PinIn2,
                 TIM_HandleTypeDef *htim, uint32_t channel,
@@ -72,7 +75,7 @@ void Motor_Init(Motor_t *motor,
     motor->deadband    = deadband;
 }
 
-void Motor_Setspeed(Motor_t *motor, float speed)
+void Motor_setspeed(Motor_t *motor, float speed)
 {
     if (motor->is_reversed) speed = -speed;
 
@@ -100,6 +103,11 @@ void Motor_Setspeed(Motor_t *motor, float speed)
         HAL_GPIO_WritePin(motor->PortIN2, motor->PinIN2, GPIO_PIN_SET);
         __HAL_TIM_SET_COMPARE(motor->htim, motor->TIM_Channel, pwm_out);
     }
+}
+void Motor_stop(Motor_t *motor){
+	HAL_GPIO_WritePin(motor->PortIN1, motor->PinIN1, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(motor->PortIN2, motor->PinIN2, GPIO_PIN_RESET);
+	__HAL_TIM_SET_COMPARE(motor->htim,motor->TIM_Channel,0);
 }
 
 #endif

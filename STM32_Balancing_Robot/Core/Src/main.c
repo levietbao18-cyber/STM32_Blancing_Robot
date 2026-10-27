@@ -29,32 +29,47 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef enum{
+	ROBOT_STOP=0,
+	ROBOT_RUNNING=1
+}Robot_StateTypedef;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MPU6050_Address 0x68
-#define samples 		200
+#define ANGLE_LOOP_TICK_5MS		1U
+#define SPEED_LOOP_TICK_5MS		6U
+#define S_TO_5MS				0.005f
 
-#define is_reversed 	1
-#define not_reversed 	0
+#define MPU6050_ADDR 			0x68
+#define SAMPLES					200
+#define IMU_FALL_LIMITS			5U
+#define IMU_RESET_EVERY			40U
 
-#define Angle_Kp		50.0f
-#define Angle_Ki		0.0f
-#define Angle_Kd		2.0f
+#define MOTOR1_REVERSED 		0
+#define MOTOR2_REVERSED 		1
+#define MOTOR_DEADBAND 			500
 
-#define Speed_Kp		0.12f
-#define Speed_Ki		0.0f
-#define Speed_Kd		0.0f
+#define Angle_Kp				50.0f
+#define Angle_Ki				0.0f
+#define Angle_Kd				2.0f
 
-#define MAX_PWM			2879
-#define MIN_PWM			-2879
 
-#define MAX_Angle		15.0f
-#define MIN_Angle		-15.0f
+#define Speed_Kp				0.12f
+#define Speed_Ki				0.0f
+#define Speed_Kd				0.0f
+#define SPEED_TARGET_ANGLE_LIMIT_DEG	15.0f
+#define SPEED_LFB_ALPHA			0.4F
+#define SPEED_LOOP_DELAY_TICK5MS	400U
 
-#define MOTOR_DEADBAND 	500U
+#define FALLING_ANGLE_DEG		45.0f
+#define ARM_ANGLE_DEG			15.0f
+#define ARM_HOLD_S				0.5f
+
+#define MAX_PWM					2879
+#define MIN_PWM					-2879
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -82,13 +97,18 @@ Motor_t motor2;
 PID_t PID_Angle;
 PID_t PID_Speed;
 
-float target_angle=0;
-float filtered_speed=0;
+Robot_StateTypedef state=ROBOT_STOP;
 
-volatile uint8_t flag_10ms=0;
-volatile uint8_t flag_30ms=0;
+float target_angle=0.0f;
+float filtered_speed=0.0f;
+float arm_hold_s=0.0f;
+uint32_t run_start_tick=0;
+
+uint16_t last_en1=0;
+uint16_t last_en2=0;
+
+volatile uint32_t tick_5ms=0;
 /* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -100,17 +120,84 @@ static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
- void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
-
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+void Robot_AngleLoop(float dt);
+void Robot_SpeedLoop(float dt);
+void Robot_Stop(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
  void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	 if(htim->Instance==TIM2){
-		flag_10ms+=5;
-		flag_30ms+=5;
+		 tick_5ms++;
 	 }
+ }
+ void Robot_Stop(){
+	 Motor_stop(&motor1);
+	 Motor_stop(&motor2);
+
+	 PID_reset(&PID_Angle);
+	 PID_reset(&PID_Speed);
+
+	 filtered_speed=0.0f;
+	 target_angle=0.0f;
+
+	 arm_hold_s=0;
+
+	 state=ROBOT_STOP;
+ }
+ void Robot_AngleLoop(float dt){
+	 static uint8_t failure=0;
+	 if(MPU6050_ReadAll(&MyMPU, dt)!=MPU_OK){
+			 failure++;
+		 if(failure>=IMU_FALL_LIMITS) Robot_Stop();
+		 if(failure%IMU_RESET_EVERY==0U) MPU6050_RecoverBus(&MyMPU);
+		 return;
+	 }
+	 else failure=0;
+	 const float pitch=MyMPU.Pitch;
+	 if(state==ROBOT_RUNNING){
+		 if(fabsf(pitch)>=FALLING_ANGLE_DEG){
+			 Robot_Stop();
+			 return;
+		 }
+		 float pwm_motor=PID_compute_WithRate(&PID_Angle, target_angle, pitch,MyMPU.KalmanPitch.rate, dt);
+		 Motor_setspeed(&motor1, pwm_motor);
+		 Motor_setspeed(&motor2, pwm_motor);
+	 }
+	 else{
+		 if(fabsf(pitch)<ARM_ANGLE_DEG){
+			 arm_hold_s+=dt;
+			 if(arm_hold_s>ARM_HOLD_S){
+				 run_start_tick=tick_5ms;
+				 state=ROBOT_RUNNING;
+			 }
+			 else{
+				 arm_hold_s=0;
+			 }
+		 }
+	 }
+
+ }
+ void Robot_SpeedLoop(float dt){
+	uint16_t curr_en1=__HAL_TIM_GET_COUNTER(&htim3);
+	uint16_t curr_en2=__HAL_TIM_GET_COUNTER(&htim4);
+
+	int16_t delta_en1=(int16_t)(curr_en1-last_en1);
+	int16_t delta_en2=-(int16_t)(curr_en2-last_en2);
+
+	last_en1=curr_en1;
+	last_en2=curr_en2;
+	if(state==ROBOT_STOP) return;
+
+	float encoder_avg=(float)(delta_en1+delta_en2)*0.5f;
+
+  filtered_speed= (1-SPEED_LFB_ALPHA)*filtered_speed+encoder_avg*(SPEED_LFB_ALPHA);
+	const uint32_t now=tick_5ms;
+	if(now-run_start_tick>SPEED_LOOP_DELAY_TICK5MS){
+		target_angle=PID_compute(&PID_Speed, 0.0f,filtered_speed, dt);
+	}
  }
 /* USER CODE END 0 */
 
@@ -131,7 +218,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  uint32_t last_angle_tick=0;
+  uint32_t last_speed_tick=0;
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -151,22 +239,30 @@ int main(void)
   MX_TIM4_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  Motor_init(&motor1, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, MOTOR1_REVERSED, MOTOR_DEADBAND);
+  Motor_init(&motor2, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, MOTOR2_REVERSED, MOTOR_DEADBAND);
+  Motor_stop(&motor1);
+  Motor_stop(&motor2);
+
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   __HAL_TIM_MOE_ENABLE(&htim1);
 
   HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
+  last_en1 = (uint16_t)__HAL_TIM_GET_COUNTER(&htim3);
+  last_en2 = (uint16_t)__HAL_TIM_GET_COUNTER(&htim4);
 
-  MPU6050_Init(&MyMPU, &hi2c2, MPU6050_Address);
-  MPU6050_Calibrate(&MyMPU, samples);
 
-  Motor_Init(&motor1, IN2_GPIO_Port, IN2_Pin, &htim1, TIM_CHANNEL_1, not_reversed,MOTOR_DEADBAND);
-  Motor_Init(&motor2, IN4_GPIO_Port, IN4_Pin, &htim1, TIM_CHANNEL_2, is_reversed,MOTOR_DEADBAND);
+  MPU6050_Init(&MyMPU, &hi2c2, MPU6050_ADDR);
+  MPU6050_Calibrate(&MyMPU, SAMPLES);
+
+
 
   PID_init(&PID_Angle, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
 
-  PID_init(&PID_Speed, Speed_Kp, Speed_Ki, Speed_Kd, MIN_Angle, MAX_Angle);
+  PID_init(&PID_Speed, Speed_Kp, Speed_Ki, Speed_Kd, -SPEED_TARGET_ANGLE_LIMIT_DEG, SPEED_TARGET_ANGLE_LIMIT_DEG);
 
   HAL_TIM_Base_Start_IT(&htim2);
   /* USER CODE END 2 */
@@ -178,50 +274,23 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if(flag_10ms>=10){
-		  float dt_angle=flag_10ms/1000.0f;
-		  flag_10ms=0;
-		  MPU6050_ReadAll(&MyMPU,dt_angle);
-
-		  float pwm_motor=0;
-
-
-		  if(fabsf(MyMPU.Pitch)>45.0f){
-			  pwm_motor=0;
-			  target_angle=0;
-			  filtered_speed=0;
-
-			  PID_Reset(&PID_Angle);
-			  PID_Reset(&PID_Speed);
-
-		  }
-		  else{
-			  pwm_motor=PID_Compute_WithRate(&PID_Angle, target_angle, MyMPU.Pitch,MyMPU.KalmanPitch.rate, dt_angle);
-		  }
-		  Motor_Setspeed(&motor1, pwm_motor);
-		  Motor_Setspeed(&motor2, pwm_motor);
-
+	  uint32_t now=tick_5ms;
+	  uint32_t elasped= now-last_angle_tick;
+	  if(elasped>=ANGLE_LOOP_TICK_5MS){
+	  	  Robot_AngleLoop((float)elasped*S_TO_5MS);
+	  	  last_angle_tick=now;
 	  }
-	  if(flag_30ms>=30){
-		  float dt_speed=flag_30ms/1000.0f;
-		  flag_30ms=0;
-		  int16_t encoder1=__HAL_TIM_GET_COUNTER(&htim3);
-		  int16_t encoder2=__HAL_TIM_GET_COUNTER(&htim4);
+	  now=tick_5ms;
+	  elasped=now-last_speed_tick;
+	  if(elasped>SPEED_LOOP_TICK_5MS){
 
-		  encoder2=-encoder2;
 
-		  float encoder_raw=(float)(encoder1+encoder2)*0.5f;
-		  filtered_speed= 0.6f*filtered_speed+encoder_raw*0.4f;
-
-		  if(HAL_GetTick()>=6000&&fabs( MyMPU.Pitch<45.0f)){
-			  target_angle=PID_compute(&PID_Speed, 0.0f,filtered_speed, dt_speed);
-		  }
-	      __HAL_TIM_SET_COUNTER(&htim3, 0);
-	      __HAL_TIM_SET_COUNTER(&htim4, 0);
-
+		  Robot_SpeedLoop((float)elasped*S_TO_5MS);
+		  last_speed_tick=now;
 	  }
-  }
+
   /* USER CODE END 3 */
+  }
 }
 
 /**

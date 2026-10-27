@@ -1,15 +1,11 @@
-# Build directories
-Debug/
-Release/
-
-# Object and executable files
+build/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
 *.elf
 *.bin
 *.hex
-*.o
-*.d
 *.map
-*.su
-
-# IDE workspace metadata
-.metadata/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json

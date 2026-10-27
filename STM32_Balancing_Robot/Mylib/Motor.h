@@ -26,7 +26,7 @@ typedef struct {
     uint16_t           deadband;
 } Motor_t;
 
-void Motor_Init(Motor_t *motor,
+void Motor_init(Motor_t *motor,
                 GPIO_TypeDef *PortDir, uint16_t PinDir,
                 TIM_HandleTypeDef *htim, uint32_t channel,
                 uint8_t is_reversed, uint16_t deadband);
@@ -57,6 +57,7 @@ void Motor_Init(Motor_t *motor,
 #endif
 
 
-void Motor_Setspeed(Motor_t *motor, float speed);
+void Motor_setspeed(Motor_t *motor, float speed);
+void Motor_stop(Motor_t *motor);
 
 #endif
