@@ -51,8 +51,10 @@ Firmware for a two-wheeled self-balancing robot written in C (STM32 HAL) on the 
 | **USART2** | `PA2` / `PA3` | `TX` / `RX` (`DMA1_Channel6`) | `115200` baud (reserved for remote control) | 
 | **GPIO Out** | `PC13` | Fault Status LED | Blinks continuously if `Error_Handler()` is triggered | 
 
-![Pin Mapping](<img width="543" height="467" alt="image" src="https://github.com/user-attachments/assets/9d8ed436-9190-43c5-acb6-06d78272e5d1" />
-)
+<p align="center">
+  <img width="543" height="467" alt="Pin Mapping" src="https://github.com/user-attachments/assets/9d8ed436-9190-43c5-acb6-06d78272e5d1" />
+</p>
+
 ## 3. Project Structure
 
 ```
