@@ -43,14 +43,16 @@ Firmware for a two-wheeled self-balancing robot written in C (STM32 HAL) on the 
 | Peripheral | STM32 Pin | Function | Notes | 
 | ----- | ----- | ----- | ----- | 
 | **I2C2** | `PB10` / `PB11` | `SCL` / `SDA` (MPU6050) | Fast Mode $400\text{ kHz}$ | 
-| **TIM1 CH1** | `PA8` | Motor 1 PWM (`ENA`) | $1\text{ kHz}$ PWM, `ARR = 2879` | 
-| **TIM1 CH2** | `PA9` | Motor 2 PWM (`ENB`) | $1\text{ kHz}$ PWM, `ARR = 2879` | 
-| **GPIO Out** | `IN2_Pin` / `IN4_Pin` | Motor 1 & 2 Direction | Configured for Slow Decay mode | 
+| **TIM1 CH1** | `PA8` | Motor 1 PWM (`IN1`) | $1\text{ kHz}$ PWM, `ARR = 2879` | 
+| **TIM1 CH2** | `PA9` | Motor 2 PWM (`IN3`) | $1\text{ kHz}$ PWM, `ARR = 2879` | 
+| **GPIO Out** | `PB15` / `PA9` | Motor 1 & 2 Direction | Configured for Slow Decay mode | 
 | **TIM3 CH1/2** | `PA6` / `PA7` | Motor 1 Encoder | Encoder Mode `TI12` ($4\times$ quadrature) | 
 | **TIM4 CH1/2** | `PB6` / `PB7` | Motor 2 Encoder | Encoder Mode `TI12` ($4\times$ quadrature) | 
 | **USART2** | `PA2` / `PA3` | `TX` / `RX` (`DMA1_Channel6`) | `115200` baud (reserved for remote control) | 
 | **GPIO Out** | `PC13` | Fault Status LED | Blinks continuously if `Error_Handler()` is triggered | 
 
+![Pin Mapping](<img width="543" height="467" alt="image" src="https://github.com/user-attachments/assets/9d8ed436-9190-43c5-acb6-06d78272e5d1" />
+)
 ## 3. Project Structure
 
 ```
@@ -125,3 +127,14 @@ Firmware for a two-wheeled self-balancing robot written in C (STM32 HAL) on the 
 ## 7. Acknowledgments
 
 * The 1D Kalman filter implementation in `MPU6050.c` / `MPU6050.h` is adapted from the open-source [TKJElectronics KalmanFilter](https://github.com/TKJElectronics/KalmanFilter) library.
+  ## Video demo
+  
+
+https://github.com/user-attachments/assets/a1f2747a-396a-4394-bc82-e416a61dd5ad
+
+
+
+
+
+
+
