@@ -59,16 +59,16 @@ Firmware for a two-wheeled self-balancing robot written in C (STM32 HAL) on the 
 
 ```
 ├── Core/
-│   ├── Inc/
-│   │   ├── main.h          # GPIO definitions and system function prototypes
-│   │   ├── MPU6050.h       # IMU data structures and 1D Kalman filter definitions
-│   │   ├── Motor.h         # Motor driver abstraction (Slow/Fast Decay & deadband)
-│   │   └── PID.h           # PID controller struct and anti-windup definitions
-│   └── Src/
-│       ├── main.c          # Main control loop, state machine, and cascaded PID setup
-│       ├── MPU6050.c       # I2C communication, calibration, and Kalman filter logic
-│       ├── Motor.c         # PWM generation, direction control, and deadband mapping
-│       └── PID.c           # Standard PID and direct-rate PID computation routines
+    ├── Inc/
+    │   ├── main.h          # GPIO definitions and system function prototypes
+    │   ├── MPU6050.h       # IMU data structures and 1D Kalman filter definitions
+    │   ├── Motor.h         # Motor driver abstraction (Slow/Fast Decay & deadband)
+    │   └── PID.h           # PID controller struct and anti-windup definitions
+    └── Src/
+        ├── main.c          # Main control loop, state machine, and cascaded PID setup
+        ├── MPU6050.c       # I2C communication, calibration, and Kalman filter logic
+        ├── Motor.c         # PWM generation, direction control, and deadband mapping
+        └── PID.c           # Standard PID and direct-rate PID computation routines
 
 ```
 
