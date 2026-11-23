@@ -49,16 +49,19 @@ typedef enum { ROBOT_STOP = 0, ROBOT_RUNNING = 1 } Robot_StateTypedef;
 #define MOTOR2_REVERSED 1
 #define MOTOR_DEADBAND 500
 
-#define Angle_Kp 340.0f
-#define Angle_Ki 0.0f
-#define Angle_Kd 12.0f
+#define ANGLE_KP 340.0f
+#define ANGLE_KI 0.0f
+#define ANGLE_KD 14.0f
+#define ANGLE_OFFSET 8.5f
+#define ANGLE_ANTI_WIND_UP 0.0f
 
-#define Speed_Kp 0.09f
-#define Speed_Ki 0.01f
-#define Speed_Kd 0.0f
+#define SPEED_KP 0.1f
+#define SPEED_KI 0.02f
+#define SPEED_KD 0.0f
+#define SPEED_ANTI_WIND_UP 8.0f
 #define SPEED_TARGET_ANGLE_LIMIT_DEG 20.0f
 #define SPEED_LFB_ALPHA 0.6F
-#define SPEED_LOOP_DELAY_TICK5MS 100U
+#define SPEED_LOOP_DELAY_TICK5MS 30U
 
 #define FALLING_ANGLE_DEG 45.0f
 #define ARM_ANGLE_DEG 15.0f
@@ -67,7 +70,6 @@ typedef enum { ROBOT_STOP = 0, ROBOT_RUNNING = 1 } Robot_StateTypedef;
 #define MAX_PWM 2879
 #define MIN_PWM -2879
 
-#define ANGLE_OFFSET 6.0f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -270,10 +272,12 @@ int main(void) {
     Error_Handler();
   }
 
-  PID_init(&PID_Angle, Angle_Kp, Angle_Ki, Angle_Kd, MIN_PWM, MAX_PWM);
+  PID_init(&PID_Angle, ANGLE_KP, ANGLE_KI, ANGLE_KD, MIN_PWM, MAX_PWM,
+           ANGLE_ANTI_WIND_UP);
 
-  PID_init(&PID_Speed, Speed_Kp, Speed_Ki, Speed_Kd,
-           -SPEED_TARGET_ANGLE_LIMIT_DEG, SPEED_TARGET_ANGLE_LIMIT_DEG);
+  PID_init(&PID_Speed, SPEED_KP, SPEED_KI, SPEED_KD,
+           -SPEED_TARGET_ANGLE_LIMIT_DEG, SPEED_TARGET_ANGLE_LIMIT_DEG,
+           SPEED_ANTI_WIND_UP);
   target_angle = ANGLE_OFFSET;
   HAL_TIM_Base_Start_IT(&htim2);
   MX_IWDG_Init();

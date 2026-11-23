@@ -1,21 +1,22 @@
 #ifndef PID_H
 #define PID_H
-#include<stdint.h>
+#include <stdint.h>
 
+typedef struct {
+  float Kp, Ki, Kd;
 
-typedef struct{
-	float Kp,Ki,Kd;
+  float out_max;
+  float out_min;
+  float wind_up;
+  float pre_error;
+  float integral;
+  uint8_t has_pre_error;
 
-	float out_max;
-	float out_min;
-
-	float pre_error;
-	float integral;
-	uint8_t has_pre_error;
-
-}PID_t;
-void PID_init(PID_t *pid, float kp, float ki, float kd, float out_min, float out_max);
+} PID_t;
+void PID_init(PID_t *pid, float kp, float ki, float kd, float out_min,
+              float out_max, float wind_up);
 void PID_reset(PID_t *pid);
-float PID_compute(PID_t *pid,float setPoint, float currentValue, float dt);
-float PID_compute_WithRate(PID_t *pid, float setPoint, float currentValue,float rate, float dt);
+float PID_compute(PID_t *pid, float setPoint, float currentValue, float dt);
+float PID_compute_WithRate(PID_t *pid, float setPoint, float currentValue,
+                           float rate, float dt);
 #endif
